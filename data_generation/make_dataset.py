@@ -13,14 +13,14 @@ from heparchy.data.event import SignalVertex
 from tqdm import tqdm
 
 import sys
-sys.path.append('/mainfs/home/gc2c20/myproject/hyperTree/')
-sys.path.append('/mainfs/home/gc2c20/myproject/hyperTree/scripts/ \
-        data_generation/')
+sys.path.append('/mainfs/home/gc2c20/myproject/hyperparticle/')
+sys.path.append('/mainfs/home/gc2c20/myproject/hyperparticle/data_generation/')
 
 import numpy as np
 import graphicle as gcl
 from embedding import HyperEmbedding
 from duplicates import duplicate_mask
+from tree import FamilyTree
 
 @click.command()
 @click.argument('lhe_path', type=click.Path(exists=True))
@@ -84,7 +84,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                     hyper_coords = np.NaN
                     while np.isnan(hyper_coords).sum() > 0:
                         hyper = HyperEmbedding(graph_node)
-                        hyper.get_embedding()
+                        hyper.get_embedding(normalise=graph.final)
                         hyper_coords = hyper.embeddings
 
                 
@@ -95,8 +95,47 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                     event_write.set_mask('final', data=graph.final.data)
 
                     event_write.set_custom_dataset(
-                        name='hyper_coords',data=hyper_coords,
+                        name='MC_hyp',data=hyper_coords,
                         dtype='double')
-                    
+
+                    algo = ['aKt', 'CA', 'Kt']
+                    ps = [-1, 0, 1]
+                    tree = FamilyTree(graph)
+                    for k in range(3):
+                        auxiliar_pmu = np.zeros_like(graph.pmu.data)
+                        auxiliar_edges = np.zeros_like(
+                            graph.edges[:len(hyper_coords)])
+                        auxiliar_hyper = np.zeros_like(hyper_coords)
+                        auxiliar_mask = np.zeros(
+                            len(hyper_coords), dtype=bool)
+
+                        g = tree.history(p = ps[k])
+                        lab = np.where(g.nodes == -1)[0]
+                        hyp = HyperEmbedding(g)
+                        hyp.get_embedding(fix_node=lab, normalise=g.final)
+                        
+                        length = len(g.nodes)
+                        auxiliar_pmu[:length] = g.pmu.data
+                        auxiliar_edges[:length-1] = g.edges
+                        auxiliar_hyper[:length] = hyp.embeddings
+                        auxiliar_mask[:length] = True
+
+                        event_write.set_custom_dataset(
+                            name = algo[k] + '_pmu', data = auxiliar_pmu, 
+                            dtype = auxiliar_pmu.dtype
+                        )
+                        event_write.set_custom_dataset(
+                            name = algo[k] + '_edges', data = auxiliar_edges, 
+                            dtype = auxiliar_edges.dtype
+                        )
+                        event_write.set_custom_dataset(
+                            name = algo[k] + '_hyp', data = auxiliar_hyper, 
+                            dtype = auxiliar_hyper.dtype
+                        ) 
+                        event_write.set_custom_dataset(
+                            name = algo[k] + '_mask', data = auxiliar_mask, 
+                            dtype = auxiliar_mask.dtype
+                        )
+
 if __name__ == '__main__':
     sys.exit(main())

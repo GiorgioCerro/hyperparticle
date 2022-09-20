@@ -309,7 +309,10 @@ class HyperEmbedding:
                 if normalise:
                     finals = self.embeddings[normalise]
 
-                    scale = np.max(np.linalg.norm(finals, axis=-1))
+                    if len(finals) > 0:
+                        scale = np.max(np.linalg.norm(finals, axis=-1))
+                    else: 
+                        scale = 1e-2
                     scale = max(scale, 1e-2)
                     scale = min(scale, 1. - 1e-3)
 
