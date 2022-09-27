@@ -87,7 +87,7 @@ class ParticleDataset(Dataset):
                     pmu = pmu[mask],
                     pdg = np.ones(sum(mask)),
                 )
-                finals = g.nodes > 0
+                finals = g.nodes >= 0
                 g.final.data = finals
 
                 event_dict[self.algo[k] + '_graph'] = g
