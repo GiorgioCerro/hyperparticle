@@ -66,10 +66,10 @@ class FamilyTree:
         # IMPORTANT: This edge helps to create a fully connected graph
         #edges = [(first_id, -1)]
         if not jet.parents:
-            ptcl.append((jet.pt, jet.eta, jet.phi, jet.mass, jet.id))
+            ptcl.append((jet.px, jet.py, jet.pz, jet.e, jet.id))
             edges = [(jet.id, -1)]
             return ptcl, edges
-        ptcl.append((jet.pt, jet.eta, jet.phi, jet.mass, first_id))
+        ptcl.append((jet.px, jet.py, jet.pz, jet.e, first_id))
         edges = [(first_id, -1)]
 
         children = jet.parents
@@ -86,7 +86,7 @@ class FamilyTree:
                     children_temp.append(d.parents[0])
                     children_temp.append(d.parents[1])
                     # collect the particle
-                    ptcl.append((d.pt, d.eta, d.phi, d.mass, _id))
+                    ptcl.append((d.px, d.py, d.pz, d.e, _id))
                     # collect the id
                     parents_id_temp.append(_id)
                     parents_id_temp.append(_id)
@@ -132,7 +132,7 @@ class FamilyTree:
         order = [np.where(indices == idx)[0][0] for idx in graph.nodes]
         graph.pmu.data = momentum[order]
         
-        finals = graph.nodes > 0
+        finals = graph.nodes >= 0
         graph.final.data = finals
         return graph
 
