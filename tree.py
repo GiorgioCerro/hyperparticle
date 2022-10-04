@@ -38,6 +38,7 @@ class FamilyTree:
         ].copy().astype(self.pyjet_dtype)
 
         event = append_fields(event, 'id', data=np.arange(len(event)))
+        #event = append_fields(event, 'id', data=self.graph.nodes[mask])
         return event
     
 
@@ -67,10 +68,10 @@ class FamilyTree:
         #edges = [(first_id, -1)]
         if not jet.parents:
             ptcl.append((jet.px, jet.py, jet.pz, jet.e, jet.id))
-            edges = [(jet.id, -1)]
+            edges = [(-1, jet.id)]
             return ptcl, edges
         ptcl.append((jet.px, jet.py, jet.pz, jet.e, first_id))
-        edges = [(first_id, -1)]
+        edges = [(-1, first_id)]
 
         children = jet.parents
         parents_id = [first_id, first_id]
@@ -91,7 +92,7 @@ class FamilyTree:
                     parents_id_temp.append(_id)
                     parents_id_temp.append(_id)
                     # collect the edge of the particle and its parent
-                    edges.append((_id, parents_id[n]))
+                    edges.append((parents_id[n], _id))
                     # update id
                     _id += -1
                 
@@ -99,7 +100,7 @@ class FamilyTree:
                     # if a particle doesn't have children collect the ptcl
                     ptcl.append((d.px, d.py, d.pz, d.e, d.id))
                     # collect the edge
-                    edges.append((d.id, parents_id[n]))
+                    edges.append((parents_id[n], d.id))
             # update list of children and ids
             children = children_temp
             parents_id = parents_id_temp

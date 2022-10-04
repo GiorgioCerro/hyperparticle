@@ -44,10 +44,10 @@ def get_labels(graph):
         
     # Create the networkx object
     G = nx.DiGraph()
-    ed = copy.copy(graph.edges)
-    ed['in'] = graph.edges['out']
-    ed['out'] = graph.edges['in']
-    G.add_edges_from(ed)
+    #ed = copy.copy(graph.edges)
+    #ed['in'] = graph.edges['out']
+    #ed['out'] = graph.edges['in']
+    G.add_edges_from(graph.edges)
         
     labels = np.zeros(len(graph.nodes), dtype=int)
     for j in nodes:
@@ -79,4 +79,20 @@ def get_colors(graph, color_seed=1234):
     #    b = np.random.random()
     #    g = np.random.random()
     #    colors[k] = (r, g, b)
-    return [colors[k] for k in y]
+    return np.array([colors[k] for k in y])
+
+
+def hard_descendants(graph, idx):
+    node = graph.nodes[np.where(graph.pdg.data == idx)[0][0]]
+
+    #Create the nx obj
+    G = nx.DiGraph()
+    G.add_edges_from(graph.edges)
+
+    descendants = list(nx.descendants(G, node))
+    descendants.append(node)
+    
+    idxs = np.array([np.where(graph.nodes == j)[0] for j in descendants])
+    mask = np.zeros_like(graph.nodes, dtype=bool)
+    mask[idxs] = True
+    return mask

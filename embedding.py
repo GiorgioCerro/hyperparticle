@@ -11,11 +11,11 @@ from matplotlib.patches import Circle,ConnectionPatch
 class HyperEmbedding:
     def __init__(self,graph,params_dict={
                         'dim':2,
-                        'max_epochs':150,
-                        'lr':.02,
+                        'max_epochs':120,
+                        'lr':.03,
                         'n_negative':2,
                         'context_size':1,
-                        'steps':8}):
+                        'steps':7}):
 
         self.epsilon = 1e-8
         self.dim = params_dict['dim']

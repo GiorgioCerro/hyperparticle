@@ -84,7 +84,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                     hyper_coords = np.NaN
                     while np.isnan(hyper_coords).sum() > 0:
                         hyper = HyperEmbedding(graph_node)
-                        hyper.get_embedding(normalise=graph.final)
+                        hyper.get_embedding()
                         hyper_coords = hyper.embeddings
 
                 
@@ -112,7 +112,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                         g = tree.history(p = ps[k])
                         lab = np.where(g.nodes == -1)[0]
                         hyp = HyperEmbedding(g)
-                        hyp.get_embedding(fix_node=lab, normalise=g.final)
+                        hyp.get_embedding(fix_node=lab)
                         
                         length = len(g.nodes)
                         auxiliar_pmu[:length] = g.pmu.data

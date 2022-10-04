@@ -83,7 +83,7 @@ class ParticleDataset(Dataset):
                 mask = _event.get_custom(self.algo[k] + '_mask')
 
                 g = gcl.Graphicle.from_numpy(
-                    edges = edges[mask],
+                    edges = edges[mask][:-1],
                     pmu = pmu[mask],
                     pdg = np.ones(sum(mask)),
                 )

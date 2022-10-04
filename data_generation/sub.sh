@@ -11,5 +11,5 @@
 #SBATCH --mail-user=g.cerro@soton.ac.uk
 
 source activate pyg
-mpiexec -n 40 python3 make_dataset.py ../data/test2/hz.lhe.gz pythia-settings.cmnd ../data/test2/hz_train.hdf5 signal
+mpiexec -n 40 python3 make_dataset.py ../data/test3/hz.lhe.gz pythia-settings.cmnd ../data/test3/hz_train.hdf5 signal
 source deactivate
