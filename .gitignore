@@ -2,3 +2,4 @@ __pycache__/
 .ipynb_checkpoints/
 py.py
 data_generation/__pycache__/
+data/
