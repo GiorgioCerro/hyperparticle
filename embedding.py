@@ -303,7 +303,7 @@ class HyperEmbedding:
                 self.embeddings = self._clip_vectors(self.embeddings)
                 #logging.info(f'epoch:{epoch},step:{step},loss:{loss}')
 
-                if fix_node:
+                if isinstance(fix_node, int):
                     self.embeddings[fix_node] = [0., 0.]
 
                 if normalise:

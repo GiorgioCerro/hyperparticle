@@ -29,55 +29,81 @@ def distance_matrix(nodes, off_diag = True):
         return matrix
 
 
-def precision_and_recall(dataset, n_event):
+def precision_and_recall(event):
     '''Get precision and recall for all the different graphs.
-    The average is over the n_event
     '''
-    if n_event > dataset.__len__():
-        raise Exception('Not enough events in the dataset')
-
-    ##Here raise the error if n_event > len(dataset)
-    precision = np.zeros((n_event, 4))
-    recall = np.zeros((n_event, 4))
-
-    event = dataset.__getitem__(0)
     keys = [k for k in event.keys()]
-    for ev in range(n_event):
-        event = dataset.__getitem__(ev)
-        precision_temp = []
-        recall_temp = []
+    precision = []
+    recall = []
 
-        k = 0
+    k = 0
+    graph, hyp = event[keys[k]], event[keys[k+1]]
+    hard_mask = hard_descendants(graph, 25)
+
+    
+    y_true = hard_mask[graph.final.data].astype(int)
+    
+    hyp_final = hyp[graph.final.data]
+    dist = distance_matrix(hyp_final, off_diag=False)
+    y_pred = np.array([y_true[np.argsort(j)[1]] for j in dist])
+
+    precision.append(precision_score(y_true, y_pred))
+    recall.append(recall_score(y_true, y_pred))
+
+    for k in [2, 4, 6]:
         graph, hyp = event[keys[k]], event[keys[k+1]]
-        hard_mask = hard_descendants(graph, 25)
-        
-        y_true = hard_mask[graph.final].astype(int)
-        
-        hyp_final = hyp[graph.final]
+        hyp_final = hyp[graph.final.data, :]
         dist = distance_matrix(hyp_final, off_diag=False)
         y_pred = np.array([y_true[np.argsort(j)[1]] for j in dist])
 
-        precision_temp.append(precision_score(y_true, y_pred))
-        recall_temp.append(recall_score(y_true, y_pred))
+        precision.append(precision_score(y_true, y_pred))
+        recall.append(recall_score(y_true, y_pred))
 
-        for k in [2, 4, 6]:
-            graph, hyp = event[keys[k]], event[keys[k+1]]
-            hyp_final = hyp[graph.final, :]
-            dist = distance_matrix(hyp_final, off_diag=False)
-            y_pred = np.array([y_true[np.argsort(j)[1]] for j in dist])
-
-            precision_temp.append(precision_score(y_true, y_pred))
-            recall_temp.append(recall_score(y_true, y_pred))
-
-        
-        precision[ev, :] = precision_temp
-        recall[ev, :] = recall_temp
+    return precision, recall
 
 
-    cols = ['MC', 'Anti-Kt', 'CA', 'Kt']
-    rows = ['Precision', 'Recall']
-    precision = np.mean(precision, axis=0)
-    recall = np.mean(recall, axis=0)
+def mAP(event):
+    '''Get the mean average precision for all the different graphs.
+    '''
+    keys = [k for k in event.keys()]
+    total_mAP = []
 
-    df = pd.DataFrame([precision, recall], index=rows, columns=cols)
-    return df
+    for k in range(0, 7, 2):
+        graph, hyp = event[keys[k]], event[keys[k+1]]
+        G = nx.Graph()
+        G.add_edges_from(graph.edges)
+
+        distances = distance_matrix(hyp, off_diag=False)
+        mAP = 0
+        for node_idx in range(len(graph.nodes)):
+            node = graph.nodes[node_idx]
+            # get the neighbours of a node
+            neighbours = list(G.neighbors(node))
+            temp_mAP = 0
+            for neigh in neighbours:
+                # define the circle's radius
+                neigh_idx = np.where(graph.nodes == neigh)[0]
+                radius = distances[node_idx][neigh_idx][0]
+
+                # find all the nodes within the circle
+                radius_mask = distances[node_idx] <= radius
+                # remove self loop
+                radius_mask[node_idx] = False
+
+                nodes_in_circle = graph.nodes[radius_mask]
+                # count how manyy should be there
+                num = len(set(nodes_in_circle).intersection(set(neighbours)))
+                # how many there are in total
+                den = len(nodes_in_circle)
+
+                temp_mAP  += num / den
+
+            mAP += temp_mAP / len(neighbours) 
+            
+        mAP /= G.number_of_nodes()
+        total_mAP.append(mAP)
+
+    
+    return total_mAP
+
+
