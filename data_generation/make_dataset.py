@@ -81,43 +81,51 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                     graph_node.adj = gcl.transform.particle_as_node(
                         graph_node.adj)
 
+                    '''
                     hyper_coords = np.NaN
                     while np.isnan(hyper_coords).sum() > 0:
                         hyper = HyperEmbedding(graph_node)
                         hyper.get_embedding()
                         hyper_coords = hyper.embeddings
 
-                
+                    ''' 
                     event_write.set_pmu(graph.pmu.data)
                     event_write.set_pdg(graph.pdg.data)
                     event_write.set_status(graph.status.data)
                     event_write.set_edges(graph.edges)
                     event_write.set_mask('final', data=graph.final.data)
 
+                    '''
                     event_write.set_custom_dataset(
                         name='MC_hyp',data=hyper_coords,
                         dtype='double')
-
+                    '''
                     algo = ['aKt', 'CA', 'Kt']
                     ps = [-1, 0, 1]
                     tree = FamilyTree(graph)
                     for k in range(3):
                         auxiliar_pmu = np.zeros_like(graph.pmu.data)
                         auxiliar_edges = np.zeros_like(
-                            graph.edges[:len(hyper_coords)])
+                            graph.edges[:len(graph.pmu.data)])
+                        '''
                         auxiliar_hyper = np.zeros_like(hyper_coords)
+                        '''
                         auxiliar_mask = np.zeros(
-                            len(hyper_coords), dtype=bool)
+                            len(graph.pmu.data), dtype=bool)
 
                         g = tree.history(p = ps[k])
+                        '''
                         lab = np.where(g.nodes == -1)[0]
                         hyp = HyperEmbedding(g)
                         hyp.get_embedding(fix_node=lab)
+                        '''
                         
                         length = len(g.nodes)
                         auxiliar_pmu[:length] = g.pmu.data
                         auxiliar_edges[:length-1] = g.edges
+                        '''
                         auxiliar_hyper[:length] = hyp.embeddings
+                        '''
                         auxiliar_mask[:length] = True
 
                         event_write.set_custom_dataset(
@@ -128,10 +136,12 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                             name = algo[k] + '_edges', data = auxiliar_edges, 
                             dtype = auxiliar_edges.dtype
                         )
+                        '''
                         event_write.set_custom_dataset(
                             name = algo[k] + '_hyp', data = auxiliar_hyper, 
                             dtype = auxiliar_hyper.dtype
                         ) 
+                        '''
                         event_write.set_custom_dataset(
                             name = algo[k] + '_mask', data = auxiliar_mask, 
                             dtype = auxiliar_mask.dtype
