@@ -62,16 +62,20 @@ class FamilyTree:
             List of all the edges of the graph
         '''
         ptcl = []
+        edges = []
         #ptcl.append((jet.pt, jet.eta, jet.phi, jet.mass, first_id))
 
         # IMPORTANT: This edge helps to create a fully connected graph
         #edges = [(first_id, -1)]
+        '''
         if not jet.parents:
             ptcl.append((jet.px, jet.py, jet.pz, jet.e, jet.id))
             edges = [(-1, jet.id)]
             return ptcl, edges
         ptcl.append((jet.px, jet.py, jet.pz, jet.e, first_id))
         edges = [(-1, first_id)]
+        '''
+        ptcl.append((jet.px, jet.py, jet.pz, jet.e, first_id))
 
         children = jet.parents
         parents_id = [first_id, first_id]
@@ -138,7 +142,7 @@ class FamilyTree:
         return graph
 
         
-    def history(self, R=0.8, p=1) -> Tuple[array, array]:
+    def history(self, R=1., p=1) -> Tuple[array, array]:
         '''Custer the event and return a tree graph with all the
         jets connected to a common ancestor with label -1 and p=(0,0,0,0)
         
@@ -156,21 +160,25 @@ class FamilyTree:
         '''
         sequence = cluster(self.event, R=R, p=p, ep=True)
         jets = sequence.inclusive_jets()
+        jets = [j for j in jets if j.pt > 200 and np.abs(j.eta) < 2.5]
+        jet = jets[np.argmax([len(j.constituents()) for j in jets])]
 
-        ptcl = [[(0., 0., 0., 0., -1)]]
+        ptcl = []#[[(0., 0., 0., 0., -1)]]
         edge = []
-        first_id = -2
-        for jet in jets:
-            ptcl_temp, edge_temp = self.__get1tree__(jet, first_id)
-            ptcl.append(ptcl_temp)
-            first_id = min(first_id, np.min(edge_temp)) - 1
-            edge.append(edge_temp)
+        first_id = -1
+        #for jet in jets:
+        ptcl, edge = self.__get1tree__(jet, first_id)
+        #ptcl.append(ptcl_temp)
+        #first_id = min(first_id, np.min(edge_temp)) - 1
+        #edge.append(edge_temp)
         
-        edges = np.array([item for sublist in edge for item in sublist])
-        ptcls = np.array([item for sublist in ptcl for item in sublist])
+        #edges = np.array([item for sublist in edge for item in sublist])
+        #ptcls = np.array([item for sublist in ptcl for item in sublist])
         #ptcls = ptcls.astype(self.gcl_dtype)
         #ptcls.dtype = self.gcl_dtype
         
-        graph = self.__tographicle__(ptcls, edges)
+        graph = self.__tographicle__(
+            np.array(ptcl), np.array(edge)
+        )
         return graph
 

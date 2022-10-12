@@ -72,9 +72,9 @@ class ParticleDataset(Dataset):
             )
 
             graph.adj = gcl.transform.particle_as_node(graph.adj)
-            graph_hyper = _event.get_custom('MC_hyp')
+            #graph_hyper = _event.get_custom('MC_hyp')
             event_dict['MC_graph'] = graph
-            event_dict['MC_hyp'] = graph_hyper
+            #event_dict['MC_hyp'] = graph_hyper
 
             for k in range(3):
                 pmu = _event.get_custom(self.algo[k] + '_pmu')
@@ -92,5 +92,4 @@ class ParticleDataset(Dataset):
 
                 event_dict[self.algo[k] + '_graph'] = g
                 event_dict[self.algo[k] + '_hyp'] = hyp[mask]
-
         return event_dict

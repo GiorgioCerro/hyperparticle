@@ -18,9 +18,12 @@ sys.path.append('/mainfs/home/gc2c20/myproject/hyperparticle/data_generation/')
 
 import numpy as np
 import graphicle as gcl
-from embedding import HyperEmbedding
+#from embedding import HyperEmbedding
 from duplicates import duplicate_mask
 from tree import FamilyTree
+
+import networkx as nx
+from hyperlib.embedding.sarkar import sarkar_embedding
 
 @click.command()
 @click.argument('lhe_path', type=click.Path(exists=True))
@@ -61,14 +64,15 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
         with hep_file.new_process(process_name) as proc:
             for event in gen:
                 with proc.new_event() as event_write:
-                    #event_write.set_pmu(event.pmu)
-                    #event_write.set_pdg(event.pdg)
-                    #event_write.set_status(event.status)
+                    '''
+                    event_write.set_pmu(event.pmu)
+                    event_write.set_pdg(event.pdg)
+                    event_write.set_status(event.status)
                     #event_write.set_color(event.color)
                     #event_write.set_helicity(event.helicity)
-                    #event_write.set_edges(event.edges)
-                    #event_write.set_mask('final', data=event.final)
-
+                    event_write.set_edges(event.edges)
+                    event_write.set_mask('final', data=event.final)
+                    '''
                     g = gcl.Graphicle.from_numpy(
                         edges = event.edges,
                         pmu = event.pmu,
@@ -77,6 +81,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                         final = event.final,
                     )
                     graph = duplicate_mask(g)
+                    '''
                     graph_node = copy.deepcopy(graph)
                     graph_node.adj = gcl.transform.particle_as_node(
                         graph_node.adj)
@@ -86,38 +91,45 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                         hyper = HyperEmbedding(graph_node)
                         hyper.get_embedding()
                         hyper_coords = hyper.embeddings
-
+                    '''
                 
                     event_write.set_pmu(graph.pmu.data)
                     event_write.set_pdg(graph.pdg.data)
                     event_write.set_status(graph.status.data)
                     event_write.set_edges(graph.edges)
                     event_write.set_mask('final', data=graph.final.data)
-
+                    '''
                     event_write.set_custom_dataset(
                         name='MC_hyp',data=hyper_coords,
                         dtype='double')
-
+                    '''
                     algo = ['aKt', 'CA', 'Kt']
                     ps = [-1, 0, 1]
                     tree = FamilyTree(graph)
                     for k in range(3):
+                        lg = len(graph.pmu.data)
                         auxiliar_pmu = np.zeros_like(graph.pmu.data)
                         auxiliar_edges = np.zeros_like(
-                            graph.edges[:len(hyper_coords)])
-                        auxiliar_hyper = np.zeros_like(hyper_coords)
-                        auxiliar_mask = np.zeros(
-                            len(hyper_coords), dtype=bool)
+                            graph.edges[:lg])
+                        auxiliar_hyper = np.zeros((lg, 2))
+                        auxiliar_mask = np.zeros(lg, dtype=bool)
 
                         g = tree.history(p = ps[k])
                         lab = np.where(g.nodes == -1)[0]
-                        hyp = HyperEmbedding(g)
-                        hyp.get_embedding(fix_node=lab)
+
+                        G = nx.Graph()
+                        G.add_edges_from(g.edges)
+                        nodes = np.array(G.nodes())
+                        mapping = {nodes[i]: i for i in range(len(nodes))}
+                        G = nx.relabel_nodes(G, mapping)
+                        embed = sarkar_embedding(tree=G, root=0, tau=0.5,
+                                weighted=False)
+                        hyp = np.array(list(map(float, embed))).reshape(-1, 2)
                         
                         length = len(g.nodes)
                         auxiliar_pmu[:length] = g.pmu.data
                         auxiliar_edges[:length-1] = g.edges
-                        auxiliar_hyper[:length] = hyp.embeddings
+                        auxiliar_hyper[:length] = hyp
                         auxiliar_mask[:length] = True
 
                         event_write.set_custom_dataset(
@@ -136,6 +148,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                             name = algo[k] + '_mask', data = auxiliar_mask, 
                             dtype = auxiliar_mask.dtype
                         )
+
 
 if __name__ == '__main__':
     sys.exit(main())
