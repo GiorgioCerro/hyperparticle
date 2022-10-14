@@ -73,14 +73,23 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                     event_write.set_edges(event.edges)
                     event_write.set_mask('final', data=event.final)
                     '''
-                    g = gcl.Graphicle.from_numpy(
+                    graph = gcl.Graphicle.from_numpy(
                         edges = event.edges,
                         pmu = event.pmu,
                         pdg = event.pdg,
                         status = event.status,
                         final = event.final,
                     )
-                    graph = duplicate_mask(g)
+                    #graph = duplicate_mask(g)
+
+                    # cluster
+                    algo = ['aKt', 'CA', 'Kt']
+                    ps = [-1, 0, 1]
+                    k=1
+                    tree = FamilyTree(graph)
+                    g = tree.history(p = ps[k])
+                    if not g:
+                        continue
                     '''
                     graph_node = copy.deepcopy(graph)
                     graph_node.adj = gcl.transform.particle_as_node(
@@ -103,51 +112,49 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                         name='MC_hyp',data=hyper_coords,
                         dtype='double')
                     '''
-                    algo = ['aKt', 'CA', 'Kt']
-                    ps = [-1, 0, 1]
-                    tree = FamilyTree(graph)
-                    for k in range(3):
-                        lg = len(graph.pmu.data)
-                        auxiliar_pmu = np.zeros_like(graph.pmu.data)
-                        auxiliar_edges = np.zeros_like(
-                            graph.edges[:lg])
-                        auxiliar_hyper = np.zeros((lg, 2))
-                        auxiliar_mask = np.zeros(lg, dtype=bool)
+                    #tree = FamilyTree(graph)
+                    #for k in [1]:#range(3):
+                    lg = len(graph.pmu.data)
+                    auxiliar_pmu = np.zeros_like(graph.pmu.data)
+                    auxiliar_edges = np.zeros_like(
+                        graph.edges[:lg])
+                    auxiliar_hyper = np.zeros((lg, 2))
+                    auxiliar_mask = np.zeros(lg, dtype=bool)
 
-                        g = tree.history(p = ps[k])
-                        lab = np.where(g.nodes == -1)[0]
+                    #g = tree.history(p = ps[k])
+                    lab = np.where(g.nodes == -1)[0]
 
-                        G = nx.Graph()
-                        G.add_edges_from(g.edges)
-                        nodes = np.array(G.nodes())
-                        mapping = {nodes[i]: i for i in range(len(nodes))}
-                        G = nx.relabel_nodes(G, mapping)
-                        embed = sarkar_embedding(tree=G, root=0, tau=0.5,
-                                weighted=False)
-                        hyp = np.array(list(map(float, embed))).reshape(-1, 2)
-                        
-                        length = len(g.nodes)
-                        auxiliar_pmu[:length] = g.pmu.data
-                        auxiliar_edges[:length-1] = g.edges
-                        auxiliar_hyper[:length] = hyp
-                        auxiliar_mask[:length] = True
+                    G = nx.Graph()
+                    G.add_edges_from(g.edges)
+                    nodes = np.array(G.nodes())
+                    mapping = {nodes[i]: i for i in range(len(nodes))}
+                    G = nx.relabel_nodes(G, mapping)
+                    embed = sarkar_embedding(tree=G, root=mapping[-1], 
+                        tau=0.7, weighted=False)
+                    hyp = np.array(list(map(float, embed))).reshape(-1, 2)
+                    
+                    length = len(g.nodes)
+                    auxiliar_pmu[:length] = g.pmu.data
+                    auxiliar_edges[:length-1] = g.edges
+                    auxiliar_hyper[:length] = hyp
+                    auxiliar_mask[:length] = True
 
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_pmu', data = auxiliar_pmu, 
-                            dtype = auxiliar_pmu.dtype
-                        )
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_edges', data = auxiliar_edges, 
-                            dtype = auxiliar_edges.dtype
-                        )
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_hyp', data = auxiliar_hyper, 
-                            dtype = auxiliar_hyper.dtype
-                        ) 
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_mask', data = auxiliar_mask, 
-                            dtype = auxiliar_mask.dtype
-                        )
+                    event_write.set_custom_dataset(
+                        name = algo[k] + '_pmu', data = auxiliar_pmu, 
+                        dtype = auxiliar_pmu.dtype
+                    )
+                    event_write.set_custom_dataset(
+                        name = algo[k] + '_edges', data = auxiliar_edges, 
+                        dtype = auxiliar_edges.dtype
+                    )
+                    event_write.set_custom_dataset(
+                        name = algo[k] + '_hyp', data = auxiliar_hyper, 
+                        dtype = auxiliar_hyper.dtype
+                    ) 
+                    event_write.set_custom_dataset(
+                        name = algo[k] + '_mask', data = auxiliar_mask, 
+                        dtype = auxiliar_mask.dtype
+                    )
 
 
 if __name__ == '__main__':

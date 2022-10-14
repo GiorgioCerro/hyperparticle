@@ -141,6 +141,30 @@ class FamilyTree:
         graph.final.data = finals
         return graph
 
+
+    def __identify__(self, jets):
+        '''Identify the closest jet to the MC truth
+        '''
+        hard_mask = self.graph.hard_mask['outgoing'].data
+        b_idx = np.where(np.abs(self.graph.pdg[hard_mask].data) == 5)[0]
+        b_eta = self.graph.pmu.eta[hard_mask][b_idx]
+        b_phi = self.graph.pmu.phi[hard_mask][b_idx]
+
+        identify = []
+        for b in range(2):
+            dist = []
+            for j in jets:
+                _eta = j.eta - b_eta[b]
+                _phi = j.phi - b_phi[b]
+                _phi = np.min(
+                    (_phi % (2*np.pi), np.abs(- _phi % (2*np.pi))), axis=0
+                )
+                dist.append(np.sqrt(_eta**2. + _phi**2))
+
+            identify.append(np.argmin(dist))
+
+        return np.unique(identify)
+
         
     def history(self, R=1., p=1) -> Tuple[array, array]:
         '''Custer the event and return a tree graph with all the
@@ -160,25 +184,46 @@ class FamilyTree:
         '''
         sequence = cluster(self.event, R=R, p=p, ep=True)
         jets = sequence.inclusive_jets()
-        jets = [j for j in jets if j.pt > 200 and np.abs(j.eta) < 2.5]
-        jet = jets[np.argmax([len(j.constituents()) for j in jets])]
+        jets = np.array(
+            [j for j in jets if j.pt > 200 and np.abs(j.eta) < 2.5]
+        )
 
-        ptcl = []#[[(0., 0., 0., 0., -1)]]
-        edge = []
-        first_id = -1
+        if len(jets) < 1:
+            return 
+        identify = self.__identify__(jets)
+        jets = jets[identify]
+        #jet = jets[np.argmax([len(j.constituents()) for j in jets])]
+        
+        if len(jets) < 2:
+            ptcl = []#[[(0., 0., 0., 0., -1)]]
+            edge = []
+            first_id = -1
         #for jet in jets:
-        ptcl, edge = self.__get1tree__(jet, first_id)
-        #ptcl.append(ptcl_temp)
-        #first_id = min(first_id, np.min(edge_temp)) - 1
-        #edge.append(edge_temp)
-        
-        #edges = np.array([item for sublist in edge for item in sublist])
-        #ptcls = np.array([item for sublist in ptcl for item in sublist])
-        #ptcls = ptcls.astype(self.gcl_dtype)
-        #ptcls.dtype = self.gcl_dtype
-        
+            ptcls, edges = self.__get1tree__(jets[0], first_id)
+
+        else:
+            ptcl = [[(jets[0].px + jets[1].py,
+                    jets[0].py + jets[1].py,
+                    jets[0].pz + jets[1].pz,
+                    jets[0].e + jets[1].e,
+                    -1)]
+            ]
+            edge = []
+            first_id = -2
+            for jet in jets:
+                edge.append([(first_id, -1)])
+                ptcl_temp, edge_temp = self.__get1tree__(jet, first_id)
+                first_id = np.min(edge_temp) - 1
+                
+                ptcl.append(ptcl_temp)
+                edge.append(edge_temp)
+
+            edges = [item for sublist in edge for item in sublist]
+            ptcls = [item for sublist in ptcl for item in sublist]
+            
+       
         graph = self.__tographicle__(
-            np.array(ptcl), np.array(edge)
+           np.array(ptcls), np.array(edges)
         )
         return graph
 
