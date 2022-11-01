@@ -20,10 +20,10 @@ class FamilyTree:
             'names': ('x', 'y', 'z', 'e', 'id'),
             'formats': ('f8', 'f8', 'f8', 'f8', 'f8')
         }
-        self.event = self.__getevent__()
+        self.event = self.__getevent()
 
     
-    def __getevent__(self) -> array:
+    def __getevent(self) -> array:
         '''Get the final state particles and put them in the correct format
         for pyjet.
 
@@ -42,7 +42,7 @@ class FamilyTree:
         return event
     
 
-    def __get1tree__(self, jet: PseudoJet, first_id: int) -> Tuple[list,list]:
+    def __get1tree(self, jet: PseudoJet, first_id: int) -> Tuple[list,list]:
         '''Given a PseudoJet object, reconstruct the tree structure, 
         returning a list of all the particles and a list of edges.
         Leaves have positive label; ancestor's label depends on others jets.
@@ -112,7 +112,7 @@ class FamilyTree:
         return ptcl, edges
             
 
-    def __tographicle__(self, particles: array, edges: array) -> Graphicle:
+    def __tographicle(self, particles: array, edges: array) -> Graphicle:
         '''Create a Graphicle object from a list of particles and a list of 
         edges between them.
 
@@ -142,7 +142,7 @@ class FamilyTree:
         return graph
 
 
-    def __identify__(self, jets):
+    def __identify(self, jets):
         '''Identify the closest jet to the MC truth
         '''
         hard_mask = self.graph.hard_mask['outgoing'].data
@@ -190,7 +190,7 @@ class FamilyTree:
 
         if len(jets) < 1:
             return 
-        identify = self.__identify__(jets)
+        identify = self.__identify(jets)
         jets = jets[identify]
         #jet = jets[np.argmax([len(j.constituents()) for j in jets])]
         
@@ -199,7 +199,7 @@ class FamilyTree:
             edge = []
             first_id = -1
         #for jet in jets:
-            ptcls, edges = self.__get1tree__(jets[0], first_id)
+            ptcls, edges = self.__get1tree(jets[0], first_id)
 
         else:
             ptcl = [[(jets[0].px + jets[1].py,
@@ -212,7 +212,7 @@ class FamilyTree:
             first_id = -2
             for jet in jets:
                 edge.append([(first_id, -1)])
-                ptcl_temp, edge_temp = self.__get1tree__(jet, first_id)
+                ptcl_temp, edge_temp = self.__get1tree(jet, first_id)
                 first_id = np.min(edge_temp) - 1
                 
                 ptcl.append(ptcl_temp)
@@ -222,7 +222,7 @@ class FamilyTree:
             ptcls = [item for sublist in ptcl for item in sublist]
             
        
-        graph = self.__tographicle__(
+        graph = self.__tographicle(
            np.array(ptcls), np.array(edges)
         )
         return graph

@@ -21,7 +21,12 @@ class ParticleDataset(Dataset):
         stack = ExitStack()
         for file in self.__files:
             file_obj = stack.enter_context(HdfReader(path=file))
-            process = file_obj.read_process(name = self.__process_name)
+            try:
+                process = file_obj.read_process(name = 'signal')
+                self.__process_name = 'signal'
+            except KeyError:
+                process = file_obj.read_process(name = 'background')
+                self.__process_name = 'background'
             ini = self.__ranges[-1][1] + 1
             fin = ini + len(process) - 1
             self.__ranges.append((ini, fin))
