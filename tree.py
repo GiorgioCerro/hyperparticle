@@ -187,6 +187,17 @@ class FamilyTree:
         jets = np.array(
             [j for j in jets if j.pt > 200 and np.abs(j.eta) < 2.5]
         )
+        
+        # if antikt is chosen, recluster with CA
+        if p == -1: 
+            constituents = []
+            for j in jets:
+                for c in j.constituents():
+                    constituents.append((c.e, c.px, c.py, c.pz, c.id))
+            constituents = np.array(constituents, dtype=self.event.dtype)
+            sequence = cluster(constituents, R=R, p=0, ep=True)
+            jets = sequence.inclusive_jets()
+            jets = np.array([j for j in jets])
 
         if len(jets) < 1:
             return 

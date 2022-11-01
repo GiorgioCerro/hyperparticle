@@ -8,13 +8,11 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from heparchy.read.hdf import HdfReader
 from tree import FamilyTree
-from embedding import HyperEmbedding
 
 class ParticleDataset(Dataset):
     '''Particles shower dataset.'''
 
-    def __init__(self, path, process_name):
-        self.__process_name = process_name
+    def __init__(self, path):
         self.__files = glob.glob(path + '/*.hdf5')
         self.__ranges = [(-1, -1)]
 
@@ -42,22 +40,6 @@ class ParticleDataset(Dataset):
         return self.__ranges['fin'][-1]
 
 
-    def __getdict__(self, graph):
-        algo = ['aKt', 'CA', 'Kt']
-        ps = [-1, 0, 1]
-        graph_dict = {}
-
-        tree = FamilyTree(graph)
-        for k in range(3):
-            g = tree.history(p = ps[k])
-            hyp = HyperEmbedding(g)
-            hyp.get_embedding(fix_node=2, normalise=g.final)
-            graph_dict[algo[k] + '_graph'] = g
-            graph_dict[algo[k] + '_hyp'] = hyp.embeddings
-
-        return graph_dict
-
-
     def __getitem__(self, idx):
         _file_idx = int(np.where(
             np.logical_and(np.less_equal(self.__ranges['ini'], idx),
@@ -82,7 +64,7 @@ class ParticleDataset(Dataset):
             event_dict['MC_graph'] = graph
             #event_dict['MC_hyp'] = graph_hyper
 
-            for k in [1]:#range(3):
+            for k in range(3):
                 pmu = _event.get_custom(self.algo[k] + '_pmu')
                 edges = _event.get_custom(self.algo[k] + '_edges')
                 hyp = _event.get_custom(self.algo[k] + '_hyp')
