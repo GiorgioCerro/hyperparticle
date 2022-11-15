@@ -10,8 +10,8 @@
 # send mail to this address
 #SBATCH --mail-user=g.cerro@soton.ac.uk
 
-file_in="../data/higgs_tagging/signal_full/hz.lhe.gz"
-file_out="../data/higgs_tagging/signal_full/hz_train.hdf5"
+file_in="../data/compare_algo/hz.lhe.gz"
+file_out="../data/compare_algo/hz_train.hdf5"
 
 source activate pyg
 mpiexec -n 40 python3 make_dataset.py $file_in pythia-settings.cmnd $file_out signal
