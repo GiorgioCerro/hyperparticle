@@ -63,8 +63,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
     with HdfWriter(split_path) as hep_file:
         with hep_file.new_process(process_name) as proc:
             for event in gen:
-                with proc.new_event() as event_write:
-                    graph = gcl.Graphicle.from_numpy(
+                graph = gcl.Graphicle.from_numpy(
                         edges = event.edges,
                         pmu = event.pmu,
                         pdg = event.pdg,
@@ -73,41 +72,61 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                     )
                     #graph = duplicate_mask(g)
 
-                    # cluster
+                # cluster
+                
+                algo = ['aKt', 'CA', 'Kt']
+                ps = [-1, 0, 1]
+                tree = FamilyTree(graph)
+                g = tree.history(R=1.,p = ps[0], pt_cut=30, eta_cut=2.5)
+                if not g:
+                    print(f'antikt not found, skipping')
+                    continue
+                g = tree.history(R=1.,p = ps[1], pt_cut=30, eta_cut=2.5)
+                if not g:
+                    print(f'CA not found, skipping')
+                    continue
+                g = tree.history(R=1.,p = ps[2], pt_cut=30, eta_cut=2.5)
+                if not g:
+                    print(f'Kt not found, skipping')
+                    continue
+                 
+                with proc.new_event() as event_write:
                     algo = ['aKt', 'CA', 'Kt']
                     ps = [-1, 0, 1]
-                    k=1
+                    
+                    event_write.pmu = graph.pmu.data 
+                    event_write.pdg = graph.pdg.data
+                    event_write.status = graph.status.data 
+                    event_write.edges = graph.edges
+                    event_write.masks['final'] = graph.final.data
+                    
                     tree = FamilyTree(graph)
-                    g = tree.history(p = ps[k])
-                    if not g:
-                        continue
-
-                    event_write.set_pmu(graph.pmu.data)
-                    event_write.set_pdg(graph.pdg.data)
-                    event_write.set_status(graph.status.data)
-                    event_write.set_edges(graph.edges)
-                    event_write.set_mask('final', data=graph.final.data)
-                                        
-                    #tree = FamilyTree(graph)
                     for k in range(3):
                         lg = len(graph.pmu.data)
                         auxiliar_pmu = np.zeros_like(graph.pmu.data)
                         auxiliar_edges = np.zeros_like(graph.edges[:lg])
                         auxiliar_hyper = np.zeros((lg, 2))
                         auxiliar_mask = np.zeros(lg, dtype=bool)
+                        auxiliar_weights = np.zeros(lg)
 
-                        g = tree.history(p = ps[k])
+                        recluster = None
+                        #if ps[k] == -1:
+                        #    recluster = True
+                        g = tree.history(R=1.0, p=ps[k], pt_cut=30,
+                                        eta_cut=2.5, recluster=recluster)
                         if not g:
                             continue
                         lab = np.where(g.nodes == -1)[0]
-
+                        
+                        
                         G = nx.Graph()
                         G.add_edges_from(g.edges)
                         nodes = np.array(G.nodes())
                         mapping = {nodes[i]: i for i in range(len(nodes))}
                         G = nx.relabel_nodes(G, mapping)
+                        
                         embed = sarkar_embedding(tree=G, root=mapping[-1], 
-                            tau=0.7, weighted=False)
+                            tau=0.6, weighted=False)
                         hyp = np.array(list(map(float, embed))).reshape(-1, 2)
                         
                         length = len(g.nodes)
@@ -116,22 +135,10 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                         auxiliar_hyper[:length] = hyp
                         auxiliar_mask[:length] = True
 
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_pmu', data = auxiliar_pmu, 
-                            dtype = auxiliar_pmu.dtype
-                        )
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_edges', data = auxiliar_edges, 
-                            dtype = auxiliar_edges.dtype
-                        )
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_hyp', data = auxiliar_hyper, 
-                            dtype = auxiliar_hyper.dtype
-                        ) 
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_mask', data = auxiliar_mask, 
-                            dtype = auxiliar_mask.dtype
-                        )
+                        event_write.custom[algo[k] + '_pmu'] = auxiliar_pmu
+                        event_write.custom[algo[k] + '_edges'] = auxiliar_edges
+                        event_write.custom[algo[k] + '_hyp'] = auxiliar_hyper
+                        event_write.custom[algo[k] + '_mask'] = auxiliar_mask
 
 
 if __name__ == '__main__':

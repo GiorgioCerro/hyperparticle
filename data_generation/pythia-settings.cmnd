@@ -2,5 +2,6 @@ PartonLevel:ISR = on
 PartonLevel:FSR = on
 PartonLevel:MPI = off
 HadronLevel:Hadronize = on
+HadronLevel:all = off
 ColourReconnection:mode = 1
 BeamRemnants:remnantMode = 1
