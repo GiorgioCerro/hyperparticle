@@ -3,11 +3,9 @@ from contextlib import ExitStack
 import glob
 import graphicle as gcl
 
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 
-from tqdm import tqdm
 from heparchy.read.hdf import HdfReader
-from tree import FamilyTree
 
 class ParticleDataset(Dataset):
     '''Particles shower dataset.'''
@@ -20,10 +18,10 @@ class ParticleDataset(Dataset):
         for file in self.__files:
             file_obj = stack.enter_context(HdfReader(path=file))
             try:
-                process = file_obj.read_process(name = 'signal')
+                process = file_obj['signal']
                 self.__process_name = 'signal'
             except KeyError:
-                process = file_obj.read_process(name = 'background')
+                process = file_obj['background']
                 self.__process_name = 'background'
             ini = self.__ranges[-1][1] + 1
             fin = ini + len(process) - 1
@@ -48,36 +46,86 @@ class ParticleDataset(Dataset):
         _event_idx = idx - self.__ranges[_file_idx]['ini']
         event_dict = {}
         with HdfReader(path=self.__files[_file_idx]) as hep_file:
-            process = hep_file.read_process(name=self.__process_name)
-            _event = process.read_event(_event_idx)
+            process = hep_file[self.__process_name]
+            _event = process[_event_idx]
 
             graph = gcl.Graphicle.from_numpy(
                 edges = _event.edges,
                 pmu = _event.pmu,
                 pdg = _event.pdg,
                 status = _event.status,
-                final = _event.mask('final')
+                final = _event.masks['final']
             )
 
-            #graph.adj = gcl.transform.particle_as_node(graph.adj)
-            #graph_hyper = _event.get_custom('MC_hyp')
             event_dict['MC_graph'] = graph
-            #event_dict['MC_hyp'] = graph_hyper
-
             for k in range(3):
-                pmu = _event.get_custom(self.algo[k] + '_pmu')
-                edges = _event.get_custom(self.algo[k] + '_edges')
-                hyp = _event.get_custom(self.algo[k] + '_hyp')
-                mask = _event.get_custom(self.algo[k] + '_mask')
+                pmu = _event.custom[self.algo[k] + '_pmu']
+                edges = _event.custom[self.algo[k] + '_edges']
+                hyp = _event.custom[self.algo[k] + '_hyp']
+                mask = _event.custom[self.algo[k] + '_mask']
+                
+                g = gcl.Graphicle.from_numpy(
+                    edges = edges[mask][:-1],
+                    pmu = pmu[mask],
+                    pdg = np.ones(sum(mask)),
+                )
+
+                g.final.data = g.nodes >= 0
+
+                event_dict[self.algo[k] + '_graph'] = g
+                event_dict[self.algo[k] + '_hyp'] = hyp[mask]
+                
+        return event_dict
+
+
+
+class OneSet:
+    def __init__(self, file):
+        self.file = file 
+        self.algo = ['aKt', 'CA', 'Kt']
+        with HdfReader(path=self.file) as hep_file:
+            try: process = hep_file['signal']
+            except KeyError: process = hep_file['background']
+            self.number_of_events = len(process)
+         
+
+    def __len__(self):
+        return self.number_of_events
+
+
+    def __getitem__(self, idx):
+        event_dict = {}
+        with HdfReader(path=self.file) as hep_file:
+            try: process = hep_file['signal']
+            except KeyError: process = hep_file['background']
+            _event = process[idx]
+
+            graph = gcl.Graphicle.from_numpy(
+                edges = _event.edges,
+                pmu = _event.pmu,
+                pdg = _event.pdg,
+                status = _event.status,
+                final = _event.masks['final']
+            )
+
+            event_dict['MC_graph'] = graph
+            for k in range(1):
+                pmu = _event.custom[self.algo[k] + '_pmu']
+                edges = _event.custom[self.algo[k] + '_edges']
+                hyp = _event.custom[self.algo[k] + '_hyp']
+                mask = _event.custom[self.algo[k] + '_mask']
 
                 g = gcl.Graphicle.from_numpy(
                     edges = edges[mask][:-1],
                     pmu = pmu[mask],
                     pdg = np.ones(sum(mask)),
                 )
-                finals = g.nodes >= 0
-                g.final.data = finals
+
+                g.final.data = g.nodes >= 0
 
                 event_dict[self.algo[k] + '_graph'] = g
                 event_dict[self.algo[k] + '_hyp'] = hyp[mask]
+                
         return event_dict
+
+
