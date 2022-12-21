@@ -1,3 +1,5 @@
+import os 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import numpy as np
 import networkx as nx
 from random import randint
@@ -141,7 +143,7 @@ def emd(g1: Graphicle, g2: Graphicle, h1: ndarray, h2: ndarray) -> Tuple:
 
     euclidean_cost = np.sum(M * m)
 
-    return hyper_cost, euclidean_cost, energy_lost
+    return hyper_cost#, euclidean_cost, energy_lost
     
 
 def compute_emd(dataset, pair):
@@ -150,12 +152,12 @@ def compute_emd(dataset, pair):
 
     keys = [k for k in data1.keys()]
     hyp, euc, energy = [], [], []
-    for k in range(1, 6, 2):
+    for k in [1]:#range(1, 6, 2):
         g1, h1 = data1[keys[k]], data1[keys[k+1]]
         g2, h2 = data2[keys[k]], data2[keys[k+1]]
-        hyp_temp, euc_temp, energy_temp = emd(g1, g2, h1, h2)
-        hyp.append(hyp_temp)
-        euc.append(euc_temp)
-        energy.append(energy_temp)
+        #hyp_temp, euc_temp, energy_temp = emd(g1, g2, h1, h2)
+        hyp.append(emd(g1,g2,h1,h2))
+        #euc.append(euc_temp)
+        #energy.append(energy_temp)
 
-    return hyp, euc, energy
+    return hyp#, euc, energy

@@ -26,61 +26,62 @@ def main(path, name):
     gen = gencoordinates(0, len(dataset)-1)
     hyp, euc, energy = [],[],[]
 
-    rg = range(50)
+    rg = range(1500)
     if rank==0: 
         rg=tqdm(rg)
 
     for i in rg:
         pair = next(gen)
-        hyp_temp, euc_temp, energy_temp = compute_emd(dataset, pair)
+        #hyp_temp, euc_temp, energy_temp = compute_emd(dataset, pair)
 
-        hyp.append(hyp_temp)
-        euc.append(euc_temp)
-        energy.append(energy_temp)
+        hyp.append(compute_emd(dataset, pair))
+        #euc.append(euc_temp)
+        #energy.append(energy_temp)
 
 
   
     hyp_mean = list(np.mean(hyp, axis=0))
     hyp_std = list(np.std(hyp, axis=0))
-    euc_mean = list(np.mean(euc, axis=0))
-    euc_std = list(np.std(euc, axis=0))
-    e_mean = list(np.mean(energy, axis=0))
-    e_std = list(np.mean(energy, axis=0))
+    #euc_mean = list(np.mean(euc, axis=0))
+    #euc_std = list(np.std(euc, axis=0))
+    #e_mean = list(np.mean(energy, axis=0))
+    #e_std = list(np.mean(energy, axis=0))
 
     if rank != 0:
         comm.send(hyp_mean, dest=0, tag=0)
         comm.send(hyp_std, dest=0, tag=1)
-        comm.send(euc_mean, dest=0, tag=2)
-        comm.send(euc_std, dest=0, tag=3)
-        comm.send(e_mean, dest=0, tag=4)
-        comm.send(e_std, dest=0, tag=5)
+        #comm.send(euc_mean, dest=0, tag=2)
+        #comm.send(euc_std, dest=0, tag=3)
+        #comm.send(e_mean, dest=0, tag=4)
+        #comm.send(e_std, dest=0, tag=5)
 
     if rank == 0:
         hyperbolic_mean = [hyp_mean]
         hyperbolic_std = [hyp_std]
-        euclidean_mean = [euc_mean]
-        euclidean_std = [euc_std]
-        energy_mean = [e_mean]
-        energy_std = [e_std]
+        #euclidean_mean = [euc_mean]
+        #euclidean_std = [euc_std]
+        #energy_mean = [e_mean]
+        #energy_std = [e_std]
         for i in range(1, num_procs):
             hyperbolic_mean.append(comm.recv(source=i, tag=0))
             hyperbolic_std.append(comm.recv(source=i, tag=1))
-            euclidean_mean.append(comm.recv(source=i, tag=2))
-            euclidean_std.append(comm.recv(source=i, tag=3))
-            energy_mean.append(comm.recv(source=i, tag=4))
-            energy_std.append(comm.recv(source=i, tag=5))
+            #euclidean_mean.append(comm.recv(source=i, tag=2))
+            #euclidean_std.append(comm.recv(source=i, tag=3))
+            #energy_mean.append(comm.recv(source=i, tag=4))
+            #energy_std.append(comm.recv(source=i, tag=5))
 
         h_mean = np.array(hyperbolic_mean)
         h_std = np.array(hyperbolic_std)
-        e_mean = np.array(euclidean_mean)
-        e_std = np.array(euclidean_std)
-        energy_mean = np.array(energy_mean)
-        energy_std = np.array(energy_std)
-        saveresult((h_mean, h_std), (e_mean, e_std), 'images/'+name+'.png')
-        plot_energy(h_mean, h_std, energy_mean, energy_std, 
-                'images/h_'+name+'.png')
-        plot_energy(e_mean, e_std, energy_mean, energy_std, 
-                'images/e_'+name+'.png')
+        #e_mean = np.array(euclidean_mean)
+        #e_std = np.array(euclidean_std)
+        #energy_mean = np.array(energy_mean)
+        #energy_std = np.array(energy_std)
+        #saveresult((h_mean, h_std), (e_mean, e_std), 'images/'+name+'.png')
+        #plot_energy(h_mean, h_std, energy_mean, energy_std, 
+        #        'images/h_'+name+'.png')
+        #plot_energy(e_mean, e_std, energy_mean, energy_std, 
+        #        'images/e_'+name+'.png')
+        save_one(h_mean, 'images/akt_'+name+'.png')
 
         print('Done!')
 
@@ -106,8 +107,8 @@ def saveresult(data1: tuple, data2: tuple, path: str) -> None:
     
     for j in length:
         for i in range(3):
-            ax[2].scatter(j, h_mean[j, i] / max(h_mean[j]), c=col[i])
-            ax[3].scatter(j, e_mean[j, i] / max(e_mean[j]), c=col[i])
+            ax[2].scatter(j, h_mean[j, i] / max(h_mean[j]+1e-8), c=col[i])
+            ax[3].scatter(j, e_mean[j, i] / max(e_mean[j]+1e-8), c=col[i])
 
     titles = ['EMD in Hyperbolic space', 'EMD in Eta-Phi space']
     for i in range(2):
@@ -116,6 +117,16 @@ def saveresult(data1: tuple, data2: tuple, path: str) -> None:
         ax[i].set_ylabel('EMD')
 
     ax[0].legend()
+    plt.savefig(path)
+    plt.close()
+
+
+def save_one(data: NDArray, path: str) -> None:
+    '''save only one specific algorithm
+    '''
+    length = np.array(range(len(data)))
+    plt.scatter(length, data)
+    plt.ylim(0, 1000)
     plt.savefig(path)
     plt.close()
 

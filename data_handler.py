@@ -109,7 +109,7 @@ class OneSet:
             )
 
             event_dict['MC_graph'] = graph
-            for k in range(3):
+            for k in range(1):
                 pmu = _event.custom[self.algo[k] + '_pmu']
                 edges = _event.custom[self.algo[k] + '_edges']
                 hyp = _event.custom[self.algo[k] + '_hyp']
