@@ -6,7 +6,7 @@ from math import ceil
 import copy
 
 import click
-from showerpipe.generator import PythiaGenerator
+from showerpipe.generator import PythiaGenerator, repeat_hadronize
 from showerpipe.lhe import split, LheData, count_events
 from heparchy.write import HdfWriter
 from heparchy.data.event import SignalVertex
@@ -41,7 +41,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
     num_procs: int = comm.Get_size()
 
     total_num_events = count_events(lhe_path)
-    stride = ceil(total_num_events / num_procs)
+    stride = 1#ceil(total_num_events / num_procs)
 
     # split filepaths for each process
     split_dir = output_filepath.parent
@@ -56,7 +56,10 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
     else:
         data = comm.recv(source=0, tag=10+rank)
 
-    gen = PythiaGenerator(pythia_path, data)
+    #data = LheData(data).repeat(100)
+    first_gen = PythiaGenerator(pythia_path, data)
+    next(first_gen)
+    gen = repeat_hadronize(first_gen, 500)
     if rank == 0:  # progress bar on root process
         gen = tqdm(gen)
 
@@ -91,17 +94,18 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                     continue
                  
                 with proc.new_event() as event_write:
+                   # cluster
                     algo = ['aKt', 'CA', 'Kt']
                     ps = [-1, 0, 1]
-                    
+                   
                     event_write.pmu = graph.pmu.data 
                     event_write.pdg = graph.pdg.data
-                    event_write.status = graph.status.data 
+                    event_write.status = graph.status.data
                     event_write.edges = graph.edges
-                    event_write.masks['final'] = graph.final.data
+                    event_write.masks['final'] = graph.final.data 
                     
                     tree = FamilyTree(graph)
-                    for k in range(3):
+                    for k in range(1):
                         lg = len(graph.pmu.data)
                         auxiliar_pmu = np.zeros_like(graph.pmu.data)
                         auxiliar_edges = np.zeros_like(graph.edges[:lg])
@@ -109,13 +113,11 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                         auxiliar_mask = np.zeros(lg, dtype=bool)
                         auxiliar_weights = np.zeros(lg)
 
-                        recluster = None
+                        recluster = True
                         #if ps[k] == -1:
                         #    recluster = True
                         g = tree.history(R=1.0, p=ps[k], pt_cut=30,
                                         eta_cut=2.5, recluster=recluster)
-                        if not g:
-                            continue
                         lab = np.where(g.nodes == -1)[0]
                         
                         

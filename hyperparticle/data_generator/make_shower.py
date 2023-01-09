@@ -41,7 +41,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
     num_procs: int = comm.Get_size()
 
     total_num_events = count_events(lhe_path)
-    stride = ceil(total_num_events / num_procs)
+    stride = 1#ceil(total_num_events / num_procs)
 
     # split filepaths for each process
     split_dir = output_filepath.parent
@@ -51,11 +51,13 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
     if rank == 0:  # split up the lhe file
         lhe_splits = split(lhe_path, stride)
         data = next(lhe_splits)
+        #data = LheData(data).repeat(5)
         for i in range(1, num_procs):
             comm.send(next(lhe_splits), dest=i, tag=10+i)
     else:
         data = comm.recv(source=0, tag=10+rank)
 
+    data = LheData(data).repeat(500)
     gen = PythiaGenerator(pythia_path, data)
     if rank == 0:  # progress bar on root process
         gen = tqdm(gen)
@@ -77,31 +79,48 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                 algo = ['aKt', 'CA', 'Kt']
                 ps = [-1, 0, 1]
                 tree = FamilyTree(graph)
-                g = tree.history(R=1.,p = ps[0], pt_cut=30, eta_cut=2.5)
+                g = tree.history(R=1.0,p = ps[0], pt_cut=30, eta_cut=2.5)
                 if not g:
                     print(f'antikt not found, skipping')
                     continue
-                g = tree.history(R=1.,p = ps[1], pt_cut=30, eta_cut=2.5)
+                g = tree.history(R=1.0,p = ps[1], pt_cut=30, eta_cut=2.5)
                 if not g:
                     print(f'CA not found, skipping')
                     continue
-                g = tree.history(R=1.,p = ps[2], pt_cut=30, eta_cut=2.5)
+                g = tree.history(R=1.0,p = ps[2], pt_cut=30, eta_cut=2.5)
                 if not g:
                     print(f'Kt not found, skipping')
                     continue
-                 
+
                 with proc.new_event() as event_write:
+                    
+                    graph = gcl.Graphicle.from_numpy(
+                        edges = event.edges,
+                        pmu = event.pmu,
+                        pdg = event.pdg,
+                        status = event.status,
+                        final = event.final,
+                    )
+                    #graph = duplicate_mask(g)
+
+                    # cluster
                     algo = ['aKt', 'CA', 'Kt']
                     ps = [-1, 0, 1]
-                    
-                    event_write.pmu = graph.pmu.data 
-                    event_write.pdg = graph.pdg.data
-                    event_write.status = graph.status.data 
+                    '''
+                    k=1
+                    tree = FamilyTree(graph)
+                    g = tree.history(R=0.4,p = ps[k], pt_cut=30, eta_cut=2.5)
+                    if not g:
+                        continue
+                    ''' 
+                    event_write.pmu = graph.pmu.data
+                    event_write.pdg = graph.pdg.data 
+                    event_write.status = graph.status.data
                     event_write.edges = graph.edges
                     event_write.masks['final'] = graph.final.data
                     
                     tree = FamilyTree(graph)
-                    for k in range(3):
+                    for k in range(1):
                         lg = len(graph.pmu.data)
                         auxiliar_pmu = np.zeros_like(graph.pmu.data)
                         auxiliar_edges = np.zeros_like(graph.edges[:lg])
@@ -109,7 +128,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                         auxiliar_mask = np.zeros(lg, dtype=bool)
                         auxiliar_weights = np.zeros(lg)
 
-                        recluster = None
+                        recluster = True
                         #if ps[k] == -1:
                         #    recluster = True
                         g = tree.history(R=1.0, p=ps[k], pt_cut=30,
@@ -121,6 +140,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                         
                         G = nx.Graph()
                         G.add_edges_from(g.edges)
+                       
                         nodes = np.array(G.nodes())
                         mapping = {nodes[i]: i for i in range(len(nodes))}
                         G = nx.relabel_nodes(G, mapping)
