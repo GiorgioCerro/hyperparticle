@@ -20,7 +20,7 @@ import numpy as np
 import graphicle as gcl
 #from embedding import HyperEmbedding
 from duplicates import duplicate_mask
-from tree import FamilyTree
+from hyperparticle.tree import FamilyTree
 
 import networkx as nx
 from hyperlib.embedding.sarkar import sarkar_embedding
@@ -57,7 +57,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
     else:
         data = comm.recv(source=0, tag=10+rank)
 
-    data = LheData(data).repeat(500)
+    data = LheData(data).repeat(300)
     gen = PythiaGenerator(pythia_path, data)
     if rank == 0:  # progress bar on root process
         gen = tqdm(gen)
@@ -104,7 +104,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                     #graph = duplicate_mask(g)
 
                     # cluster
-                    algo = ['aKt', 'CA', 'Kt']
+                    algo = ['aKt', 'aKt+CA', 'Kt']
                     ps = [-1, 0, 1]
                     '''
                     k=1
@@ -120,7 +120,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                     event_write.masks['final'] = graph.final.data
                     
                     tree = FamilyTree(graph)
-                    for k in range(1):
+                    for k in range(2):
                         lg = len(graph.pmu.data)
                         auxiliar_pmu = np.zeros_like(graph.pmu.data)
                         auxiliar_edges = np.zeros_like(graph.edges[:lg])
@@ -128,10 +128,10 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                         auxiliar_mask = np.zeros(lg, dtype=bool)
                         auxiliar_weights = np.zeros(lg)
 
-                        recluster = True
-                        #if ps[k] == -1:
-                        #    recluster = True
-                        g = tree.history(R=1.0, p=ps[k], pt_cut=30,
+                        recluster = None
+                        if k>0:
+                            recluster = True
+                        g = tree.history(R=1.0, p=-1, pt_cut=None,
                                         eta_cut=2.5, recluster=recluster)
                         if not g:
                             continue

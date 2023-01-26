@@ -20,7 +20,7 @@ import numpy as np
 import graphicle as gcl
 #from embedding import HyperEmbedding
 from duplicates import duplicate_mask
-from tree import FamilyTree
+from hyperparticle.tree import FamilyTree
 
 import networkx as nx
 from hyperlib.embedding.sarkar import sarkar_embedding
@@ -101,7 +101,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                     event_write.masks['final'] = graph.final.data
                     
                     tree = FamilyTree(graph)
-                    for k in range(3):
+                    for k in range(1):
                         lg = len(graph.pmu.data)
                         auxiliar_pmu = np.zeros_like(graph.pmu.data)
                         auxiliar_edges = np.zeros_like(graph.edges[:lg])
@@ -109,7 +109,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
                         auxiliar_mask = np.zeros(lg, dtype=bool)
                         auxiliar_weights = np.zeros(lg)
 
-                        recluster = None
+                        recluster = True
                         #if ps[k] == -1:
                         #    recluster = True
                         g = tree.history(R=1.0, p=ps[k], pt_cut=30,

@@ -221,7 +221,7 @@ class FamilyTree:
             jets = filter(lambda j: j.pt > pt_cut, jets)
         if eta_cut is not None:
             jets = filter(lambda j: abs(j.eta) < eta_cut, jets)
-        jets = filter(lambda j: len(j.constituents()) > 2, jets)
+        jets = filter(lambda j: len(j.constituents()) > 4, jets)
 
         
         jets = list(jets) #this is not good, need to check
@@ -306,7 +306,7 @@ class FamilyTree:
                     sequence = cluster(constituents, R=R, p=0, ep=True)
                     jet = sequence.inclusive_jets()[0]
            
-                edge.append([(first_id, -1)])
+                edge.append([(-1, first_id)])
                 ptcl_temp, edge_temp = self.__get1tree(jet, first_id)
                 first_id = np.min(edge_temp) - 1
                 

@@ -82,7 +82,7 @@ class ParticleDataset(Dataset):
 class OneSet:
     def __init__(self, file):
         self.file = file 
-        self.algo = ['aKt', 'CA', 'Kt']
+        self.algo = ['aKt', 'aKt+CA', 'CA', 'Kt']
         with HdfReader(path=self.file) as hep_file:
             try: process = hep_file['signal']
             except KeyError: process = hep_file['background']
@@ -109,7 +109,8 @@ class OneSet:
             )
 
             event_dict['MC_graph'] = graph
-            for k in range(1):
+            
+            for k in range(2):
                 pmu = _event.custom[self.algo[k] + '_pmu']
                 edges = _event.custom[self.algo[k] + '_edges']
                 hyp = _event.custom[self.algo[k] + '_hyp']

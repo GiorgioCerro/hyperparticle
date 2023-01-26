@@ -7,6 +7,7 @@ from utils.metrics import compute_emd, gencoordinates
 from data_handler import OneSet
 from tqdm import tqdm
 import click
+from sklearn.linear_model import LinearRegression
 
 @click.command()
 @click.argument('path', type=click.Path(exists=True))
@@ -26,7 +27,7 @@ def main(path, name):
     gen = gencoordinates(0, len(dataset)-1)
     hyp, euc, energy = [],[],[]
 
-    rg = range(1500)
+    rg = range(1000)
     if rank==0: 
         rg=tqdm(rg)
 
@@ -34,14 +35,15 @@ def main(path, name):
         pair = next(gen)
         #hyp_temp, euc_temp, energy_temp = compute_emd(dataset, pair)
 
-        hyp.append(compute_emd(dataset, pair))
+        try: hyp.append(compute_emd(dataset, pair))
+        except KeyError: continue
         #euc.append(euc_temp)
-        #energy.append(energy_temp)
+        energy.append(max(dataset[pair[0]]['aKt+CA_graph'].pmu.data['e']))
 
 
   
-    hyp_mean = list(np.mean(hyp, axis=0))
-    hyp_std = list(np.std(hyp, axis=0))
+    hyp_mean = np.mean(hyp)
+    hyp_std = np.std(hyp)
     #euc_mean = list(np.mean(euc, axis=0))
     #euc_std = list(np.std(euc, axis=0))
     #e_mean = list(np.mean(energy, axis=0))
@@ -50,6 +52,7 @@ def main(path, name):
     if rank != 0:
         comm.send(hyp_mean, dest=0, tag=0)
         comm.send(hyp_std, dest=0, tag=1)
+        comm.send(np.mean(energy), dest=0, tag=2)
         #comm.send(euc_mean, dest=0, tag=2)
         #comm.send(euc_std, dest=0, tag=3)
         #comm.send(e_mean, dest=0, tag=4)
@@ -58,6 +61,7 @@ def main(path, name):
     if rank == 0:
         hyperbolic_mean = [hyp_mean]
         hyperbolic_std = [hyp_std]
+        en = [np.mean(energy)]
         #euclidean_mean = [euc_mean]
         #euclidean_std = [euc_std]
         #energy_mean = [e_mean]
@@ -65,6 +69,7 @@ def main(path, name):
         for i in range(1, num_procs):
             hyperbolic_mean.append(comm.recv(source=i, tag=0))
             hyperbolic_std.append(comm.recv(source=i, tag=1))
+            en.append(comm.recv(source=i, tag=2))
             #euclidean_mean.append(comm.recv(source=i, tag=2))
             #euclidean_std.append(comm.recv(source=i, tag=3))
             #energy_mean.append(comm.recv(source=i, tag=4))
@@ -72,6 +77,7 @@ def main(path, name):
 
         h_mean = np.array(hyperbolic_mean)
         h_std = np.array(hyperbolic_std)
+        en = np.array(en)
         #e_mean = np.array(euclidean_mean)
         #e_std = np.array(euclidean_std)
         #energy_mean = np.array(energy_mean)
@@ -81,7 +87,7 @@ def main(path, name):
         #        'images/h_'+name+'.png')
         #plot_energy(e_mean, e_std, energy_mean, energy_std, 
         #        'images/e_'+name+'.png')
-        save_one(h_mean, 'images/akt_'+name+'.png')
+        save_one(h_mean, h_std, en, 'images/aKt+CA_'+name+'.png')
 
         print('Done!')
 
@@ -121,12 +127,25 @@ def saveresult(data1: tuple, data2: tuple, path: str) -> None:
     plt.close()
 
 
-def save_one(data: NDArray, path: str) -> None:
+def save_one(data: NDArray, std: NDArray, data2: NDArray, path: str) -> None:
     '''save only one specific algorithm
     '''
     length = np.array(range(len(data)))
-    plt.scatter(length, data)
-    plt.ylim(0, 1000)
+    #plt.scatter(length, data)
+    plt.errorbar(data2, data, yerr=std, fmt='o')
+
+    mask = data > 1
+    mask2 = data2 < 550
+    mask *= mask2
+    reg = LinearRegression().fit(data2[mask][:, None], data[mask])
+    b = reg.intercept_
+    m = reg.coef_[0]
+    plt.plot(data2[mask], m*data2[mask] + b, 
+            c='r', label=f'coeff: {m:.4f}')
+    plt.title(path)
+    plt.ylim(0, 300)
+    plt.xlim(0, 600)
+    plt.legend()
     plt.savefig(path)
     plt.close()
 

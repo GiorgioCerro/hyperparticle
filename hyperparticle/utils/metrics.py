@@ -10,6 +10,7 @@ from numpy import ndarray
 from .visualisation import hard_descendants
 from sklearn.metrics import precision_score, recall_score
 from scipy.spatial.distance import cdist
+import matplotlib.pyplot as plt
 
 import ot
 
@@ -118,33 +119,79 @@ def gencoordinates(m: int, n: int) -> Generator:
             x, y = randint(m, n), randint(m, n)
 
 
-def emd(g1: Graphicle, g2: Graphicle, h1: ndarray, h2: ndarray) -> Tuple:
+#def emd(tp0: Tuple, tp1: Tuple) -> Tuple:
+#    g1, h1 = tp0
+#    g2, h2 = tp1
+#
+#    mask1 = g1.final
+#    mask2 = g2.final
+#    
+#    e1 = g1.pmu.data['e'][mask1]
+#    e2 = g2.pmu.data['e'][mask2]
+#    #e1 = g1.pmu.mass[mask1]
+#    #e2 = g2.pmu.mass[mask2]
+#
+#    minimum = min(e1.sum(), e2.sum())
+#    #energy_lost = abs(e1.sum() - e2.sum()) / minimum
+#
+#    reg = 0.005
+#    reg_m_kl = 0.05
+#    
+#    m = cdist(h1[mask1], h2[mask2], metric=sqdist)
+#    m /= np.max(m)
+#    #M = ot.partial.partial_wasserstein(e1, e2, m, minimum)
+#    M = ot.unbalanced.sinkhorn_unbalanced(e1, e2, m, reg, reg_m_kl)
+#    #plt.imshow(M)
+#    #plt.colorbar()
+#    #plt.savefig('images/cost2.png')
+#    #M = ot.unbalanced.sinkhorn_unbalanced(e1, e2, m, reg, reg_m_kl)
+#
+#    hyper_cost = np.sum(M * m)
+#
+#    '''
+#    m = g1.pmu[mask1].delta_R(g2.pmu[mask2])
+#    m /= np.max(m)
+#    M = ot.partial.partial_wasserstein(e1, e2, m, minimum)
+#    #M = ot.unbalanced.sinkhorn_unbalanced(e1, e2, m, reg, reg_m_kl)
+#    
+#    euclidean_cost = np.sum(M * m)
+#    ''' 
+#    return hyper_cost#, euclidean_cost, energy_lost
+#    #return euclidean_cost
+
+def emd(tp0: Tuple, tp1: Tuple) -> Tuple:
+    g1, h1 = tp0
+    g2, h2 = tp1
+
     mask1 = g1.final
+    _mask1 = h1[:, 0] > 0
     mask2 = g2.final
-    e1 = g1.pmu.data['e'][mask1]
-    e2 = g2.pmu.data['e'][mask2]
+    _mask2 = h2[:, 0] > 0 
 
-    minimum = min(e1.sum(), e2.sum())
-    energy_lost = abs(e1.sum() - e2.sum()) / minimum
+    hyper_cost = 0
+    for i in range(2):
+        if i == 0:
+            MASK1 = mask1 * _mask1
+            MASK2 = mask2 * _mask2
+        else:
+            MASK1 = mask1 * ~_mask1
+            MASK2 = mask2 * ~_mask2
 
-    reg = 0.005
-    reg_m_kl = 0.05
-    m = cdist(h1[mask1], h2[mask2], metric=sqdist)
-    m /= np.max(m)
-    M = ot.partial.partial_wasserstein(e1, e2, m, minimum)
-    #M = ot.unbalanced.sinkhorn_unbalanced(e1, e2, m, reg, reg_m_kl)
+        e1 = g1.pmu.data['e'][MASK1] 
+        e2 = g2.pmu.data['e'][MASK2] 
 
-    hyper_cost = np.sum(M * m)
+        minimum = min(e1.sum(), e2.sum())
+         
+        m = cdist(h1[MASK1], h2[MASK2], metric=sqdist)
+        m /= np.max(m)
+        #M = ot.partial.partial_wasserstein(e1, e2, m, minimum)
+        reg = 0.005
+        reg_m_kl = 0.5
+        hyper_cost += ot.unbalanced.sinkhorn_unbalanced2(e1, e2, m, reg, reg_m_kl)
 
-    m = g1.pmu[mask1].delta_R(g2.pmu[mask2])
-    m /= np.max(m)
-    M = ot.partial.partial_wasserstein(e1, e2, m, minimum)
-    #M = ot.unbalanced.sinkhorn_unbalanced(e1, e2, m, reg, reg_m_kl)
-
-    euclidean_cost = np.sum(M * m)
-
-    return hyper_cost#, euclidean_cost, energy_lost
-    
+        #hyper_cost += np.sum(M * m)
+    return hyper_cost
+     
 
 def compute_emd(dataset, pair):
     data1 = dataset[pair[0]]
@@ -152,11 +199,11 @@ def compute_emd(dataset, pair):
 
     keys = [k for k in data1.keys()]
     hyp, euc, energy = [], [], []
-    for k in [1]:#range(1, 6, 2):
+    for k in [3]:#range(1, 6, 2):
         g1, h1 = data1[keys[k]], data1[keys[k+1]]
         g2, h2 = data2[keys[k]], data2[keys[k+1]]
         #hyp_temp, euc_temp, energy_temp = emd(g1, g2, h1, h2)
-        hyp.append(emd(g1,g2,h1,h2))
+        hyp.append(emd((g1,h1), (g2,h2)))
         #euc.append(euc_temp)
         #energy.append(energy_temp)
 
