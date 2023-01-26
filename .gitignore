@@ -8,3 +8,8 @@ py.py
 
 .ipynb_checkpoints/
 
+#data
+/scratch/gc2c20/data/
+
+#images
+hyperparticle/images/
