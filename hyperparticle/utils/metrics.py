@@ -3,6 +3,7 @@ import networkx as nx
 from .visualisation import hard_descendants
 from sklearn.metrics import precision_score, recall_score
 import pandas as pd
+from graphicle import Graphicle
 
 
 def sqdist(x, y):
@@ -107,3 +108,13 @@ def mAP(event):
     return total_mAP
 
 
+def jet_angularities(g: Graphicle) -> float:
+    """Compute jet singularities
+    """
+    # find the jet axis
+    jet_id = np.argmax(g.pmu.pt)
+    # compute delta R between all the leaves and the jet axis
+    delta = g.pmu[g.final].delta_R(g.pmu[jet_id])
+    # scale with the pt of the particles 
+    jet_ang = g.pmu.pt[g.final] * delta.flatten()
+    return jet_ang.sum()

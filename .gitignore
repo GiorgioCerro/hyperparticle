@@ -7,4 +7,6 @@ py.py
 *.egg-info/
 
 .ipynb_checkpoints/
-
+hyperparticle/images/
+hyperparticle/data_generator/p2.cmnd
+/scratch/gc2c20/data/
