@@ -1,9 +1,18 @@
+import os 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import numpy as np
 import networkx as nx
+from random import randint
+from typing import Generator, Tuple
+from graphicle import Graphicle
+from numpy._typing import NDArray
+
 from .visualisation import hard_descendants
 from sklearn.metrics import precision_score, recall_score
-import pandas as pd
+from scipy.spatial.distance import cdist
+import matplotlib.pyplot as plt
 
+#import ot
 
 def sqdist(x, y):
     sq_norm_x = np.linalg.norm(x, axis=-1) ** 2.
@@ -13,7 +22,7 @@ def sqdist(x, y):
     cosh_angle = 1 + 2 * sq_norm_xy / ((1 - sq_norm_x) * (1 - sq_norm_y))
     cosh_angle = np.clip(a=cosh_angle, a_min=1. + 1e-8, a_max=None)
     dist = np.arccosh(cosh_angle)
-    return dist ** 2.
+    return dist #** 2.
 
 
 def distance_matrix(nodes, off_diag = True):
@@ -62,48 +71,114 @@ def precision_and_recall(event):
     return precision, recall
 
 
-def mAP(event):
+def mAP(graph, hyp ):
     '''Get the mean average precision for all the different graphs.
     '''
-    keys = [k for k in event.keys()]
-    total_mAP = []
+    G = nx.Graph()
+    G.add_edges_from(graph.edges)
+    distances = distance_matrix(hyp, off_diag=False)
+    mAP = 0
+    nodes = np.array(list(G.nodes()))
+    for node_idx in range(len(nodes)):
+        node = nodes[node_idx]
+        # get the neighbours of a node
+        neighbours = list(G.neighbors(node))
+        temp_mAP = 0
+        for neigh in neighbours:
+            # define the circle's radius
+            neigh_idx = np.where(nodes == neigh)[0]
+            radius = distances[node_idx][neigh_idx][0]
 
-    for k in range(0, 7, 2):
-        graph, hyp = event[keys[k]], event[keys[k+1]]
-        G = nx.Graph()
-        G.add_edges_from(graph.edges)
+            # find all the nodes within the circle
+            radius_mask = distances[node_idx] <= radius
+            # remove self loop
+            radius_mask[node_idx] = False
 
-        distances = distance_matrix(hyp, off_diag=False)
-        mAP = 0
-        for node_idx in range(len(graph.nodes)):
-            node = graph.nodes[node_idx]
-            # get the neighbours of a node
-            neighbours = list(G.neighbors(node))
-            temp_mAP = 0
-            for neigh in neighbours:
-                # define the circle's radius
-                neigh_idx = np.where(graph.nodes == neigh)[0]
-                radius = distances[node_idx][neigh_idx][0]
+            nodes_in_circle = nodes[radius_mask]
+            # count how manyy should be there
+            num = len(set(nodes_in_circle).intersection(set(neighbours)))
+            # how many there are in total
+            den = len(nodes_in_circle)
 
-                # find all the nodes within the circle
-                radius_mask = distances[node_idx] <= radius
-                # remove self loop
-                radius_mask[node_idx] = False
+            temp_mAP  += num / den
 
-                nodes_in_circle = graph.nodes[radius_mask]
-                # count how manyy should be there
-                num = len(set(nodes_in_circle).intersection(set(neighbours)))
-                # how many there are in total
-                den = len(nodes_in_circle)
+        mAP += temp_mAP / len(neighbours) 
+        
+    mAP /= G.number_of_nodes()
+    return mAP
 
-                temp_mAP  += num / den
 
-            mAP += temp_mAP / len(neighbours) 
-            
-        mAP /= G.number_of_nodes()
-        total_mAP.append(mAP)
+def gencoordinates(m: int, n: int) -> Generator:
+    seen = set()
+    x, y = randint(m, n), randint(m, n)
+    while True:
+        seen.add((x, y))
+        yield (x, y)
+        x, y = randint(m, n), randint(m, n)
+        while (x, y) in seen:
+            x, y = randint(m, n), randint(m, n)
 
+
+def eta_phi_dist(g0: Graphicle, g1: Graphicle) -> NDArray:
+    """Compute the distance between two sets of final states particles 
+    in the eta-phi space
+    """
+    deta = g0.pmu.eta[g0.final][..., None] - g1.pmu.eta[g1.final]
+    dphi = np.angle(
+        np.exp(1.0j * g0.pmu.phi[g0.final])[..., None] * \
+        np.exp(1.0j * g1.pmu.phi[g1.final]).conjugate()
+    )
+    return np.hypot(deta, dphi)
+
+
+#def emd(tp0: Tuple, tp1: Tuple) -> Tuple:
+#    g1, h1 = tp0
+#    g2, h2 = tp1
+#
+#    mask1 = g1.final
+#    mask2 = g2.final
+#    
+#    e1 = g1.pmu.data['e'][mask1]
+#    e2 = g2.pmu.data['e'][mask2]
+#    #e1 = g1.pmu.mass[mask1]
+#    #e2 = g2.pmu.mass[mask2]
+#
+#    minimum = min(e1.sum(), e2.sum())
+#    #energy_lost = abs(e1.sum() - e2.sum()) / minimum
+#
+#    reg = 0.005
+#    reg_m_kl = 0.05
+#    
+#    m = cdist(h1[mask1], h2[mask2], metric=sqdist)
+#    m /= np.max(m)
+#    #M = ot.partial.partial_wasserstein(e1, e2, m, minimum)
+#    M = ot.unbalanced.sinkhorn_unbalanced(e1, e2, m, reg, reg_m_kl)
+#    #plt.imshow(M)
+#    #plt.colorbar()
+#    #plt.savefig('images/cost2.png')
+#    #M = ot.unbalanced.sinkhorn_unbalanced(e1, e2, m, reg, reg_m_kl)
+#
+#    hyper_cost = np.sum(M * m)
+#
+#    '''
+#    m = g1.pmu[mask1].delta_R(g2.pmu[mask2])
+#    m /= np.max(m)
+#    M = ot.partial.partial_wasserstein(e1, e2, m, minimum)
+#    #M = ot.unbalanced.sinkhorn_unbalanced(e1, e2, m, reg, reg_m_kl)
+#    
+#    euclidean_cost = np.sum(M * m)
+#    ''' 
+#    return hyper_cost#, euclidean_cost, energy_lost
+#    #return euclidean_cost
     
-    return total_mAP
 
-
+def jet_angularities(g: Graphicle) -> float:
+    """Compute jet singularities
+    """
+    # fing the jet axis
+    jet_id = np.argmax(g.pmu.pt)
+    # compute delta R between all the leaves and the jet axis
+    delta = g.pmu[g.final].delta_R(g.pmu[jet_id])
+    # scale with the pt of the particles
+    jet_ang = g.pmu.pt[g.final] * delta.flatten()
+    return jet_ang.sum()

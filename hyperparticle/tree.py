@@ -5,7 +5,9 @@ from numpy import array
 from pyjet import cluster
 from pyjet import PseudoJet
 from numpy.lib.recfunctions import append_fields
-from typing import Tuple
+from numpy._typing import NDArray
+from typing import Tuple, Optional
+import operator as op
 
 
 class FamilyTree:
@@ -123,6 +125,8 @@ class FamilyTree:
         edges: array
             list of edges 
 
+        Returns
+        -------
         graph: Graphicle
             Graphicle object with momentum and edges
         '''
@@ -142,31 +146,73 @@ class FamilyTree:
         return graph
 
 
+    """
     def __identify(self, jets):
         '''Identify the closest jet to the MC truth
         '''
         hard_mask = self.graph.hard_mask['outgoing'].data
         b_idx = np.where(np.abs(self.graph.pdg[hard_mask].data) == 5)[0]
-        b_eta = self.graph.pmu.eta[hard_mask][b_idx]
-        b_phi = self.graph.pmu.phi[hard_mask][b_idx]
+        b_eta = self.graph.pmu[hard_mask][b_idx].eta
+        #b_phi = self.graph.pmu.phi[hard_mask][b_idx]
+        b_x = self.graph.pmu.data['x'][hard_mask][b_idx]
+        b_y = self.graph.pmu.data['y'][hard_mask][b_idx]
 
         identify = []
         for b in range(2):
             dist = []
             for j in jets:
                 _eta = j.eta - b_eta[b]
-                _phi = j.phi - b_phi[b]
-                _phi = np.min(
-                    (_phi % (2*np.pi), np.abs(- _phi % (2*np.pi))), axis=0
-                )
-                dist.append(np.sqrt(_eta**2. + _phi**2))
+                #_phi = j.phi - b_phi[b]
+                #_phi = np.min(
+                #    (_phi % (2*np.pi), np.abs(- _phi % (2*np.pi))), axis=0
+                #)
+                #dist.append(np.sqrt(_eta**2. + _phi**2))
+                phi1 = j.px + 1.0j*j.py
+                phi2 = b_x[b] + 1.0j*b_y[b]
+                _phi = np.angle(phi1.conjugate() * phi2)
+                dist.append(np.hypot(_eta,_phi))
 
             identify.append(np.argmin(dist))
 
         return np.unique(identify)
+    """
+    def __identify(self, jets: list, desired_jets: str = "qcd") -> NDArray:
+        hard_graph = self.graph[self.graph.hard_mask["outgoing"]]
+        jet_truth = hard_graph[np.flatnonzero(hard_graph.color.data)]
+        reconstructed_jets = gcl.MomentumArray(
+            tuple(map(op.attrgetter("px", "py", "pz", "e"), jets)))
+
+        deltas = jet_truth.pmu.delta_R(reconstructed_jets)
+        identify = np.argmin(deltas, axis=1)
+        return np.unique(identify)
+
+
+    def __getweights(self, graph: Graphicle) -> Graphicle: 
+        '''Return an energy weighted graph
+        '''
+        n_dict = {graph.nodes[i]: i for i in range(len(graph.nodes))}
+        weights = []
+        energy = graph.pmu.data['e']
+        for i in range(0, len(graph.edges), 2):
+            #Graphicle object has edges in a specific order so I do this range
+            a,b,c = graph.edges[i][0], graph.edges[i][1], graph.edges[i+1][1]
+            e1,e2,e3 = energy[n_dict[a]], energy[n_dict[b]], energy[n_dict[c]]
+            weights.append(e2/e1)
+            weights.append(e3/e1)
+
+        graph.adj.weights = weights
+        return graph
 
         
-    def history(self, R=1., p=1) -> Tuple[array, array]:
+    def history(
+            self, 
+            R: float, 
+            p: int, 
+            pt_cut: Optional[float] = None,
+            eta_cut: Optional[float] = None,
+            recluster: Optional[bool] = None, 
+            #get_weights=None
+            ) -> Graphicle:
         '''Custer the event and return a tree graph with all the
         jets connected to a common ancestor with label -1 and p=(0,0,0,0)
         
@@ -184,32 +230,75 @@ class FamilyTree:
         '''
         sequence = cluster(self.event, R=R, p=p, ep=True)
         jets = sequence.inclusive_jets()
-        jets = np.array(
-            [j for j in jets if j.pt > 200 and np.abs(j.eta) < 2.5]
-        )
-        
-        # if antikt is chosen, recluster with CA
-        if p == -1: 
-            constituents = []
-            for j in jets:
-                for c in j.constituents():
-                    constituents.append((c.e, c.px, c.py, c.pz, c.id))
-            constituents = np.array(constituents, dtype=self.event.dtype)
-            sequence = cluster(constituents, R=R, p=0, ep=True)
-            jets = sequence.inclusive_jets()
-            jets = np.array([j for j in jets])
+        if pt_cut is not None:
+            jets = filter(lambda j: j.pt > pt_cut, jets)
+        if eta_cut is not None:
+            jets = filter(lambda j: abs(j.eta) < eta_cut, jets)
+        jets = filter(lambda j: len(j.constituents()) > 4, jets)
 
+        
+        jets = list(jets) #this is not good, need to check
         if len(jets) < 1:
             return 
         identify = self.__identify(jets)
-        jets = jets[identify]
+        jets = [jets[idx] for idx in identify]
+        #print(f'number of jets: {len(jets)}')
+        #for j in jets:
+        #    print(f'pt: {j.pt}')
         #jet = jets[np.argmax([len(j.constituents()) for j in jets])]
+
+        '''
+        ptcl = []
+        edge = []
+        first_id = -1
+        if len(jets) > 1:
+            first_id = -2
+            ptcl = [[(jets[0].px + jets[1].py,
+                    jets[0].py + jets[1].py,
+                    jets[0].pz + jets[1].pz,
+                    jets[0].e + jets[1].e,
+                    -1)]
+            ]
+            edge.append([(first_id, -1)])
         
+        for num, jet in enumerate(jets):
+            if recluster is not None:
+                constituents = []
+                for c in jet.constituents():
+                    constituents.append((c.e, c.px, c.py, c.pz, c.id))
+                constituents = np.array(constituents, dtype=self.event.dtype)
+                sequence = cluster(constituents, R=R, p=0, ep=True)
+                jet = sequence.inclusive_jets()[0]
+           
+            if len(jets) <2:
+                first_id = -1
+                ptcls, edges = self.__get1tree(jets[0], first_id)
+
+
+            else:
+            ptcl_temp, edge_temp = self.__get1tree(jet, first_id)
+            ptcl.append(ptcl_temp)
+            edge.append(edge_temp)
+
+            first_id = np.min(edge_temp) - 1
+            if num == 1:
+                edge.append([(first_id, -1)])
+
+
+        edges = [item for sublist in edge for item in sublist]
+        ptcls = [item for sublist in ptcl for item in sublist]
+        return edges, ptcls 
+        '''
         if len(jets) < 2:
-            ptcl = []#[[(0., 0., 0., 0., -1)]]
-            edge = []
+            if recluster is not None:
+                constituents = []
+                for c in jets[0].constituents():
+                    constituents.append((c.e, c.px, c.py, c.pz, c.id))
+                constituents = np.array(constituents, dtype=self.event.dtype)
+                sequence = cluster(constituents, R=R, p=0, ep=True)
+                jets = sequence.inclusive_jets()
+           
             first_id = -1
-        #for jet in jets:
             ptcls, edges = self.__get1tree(jets[0], first_id)
 
         else:
@@ -222,7 +311,15 @@ class FamilyTree:
             edge = []
             first_id = -2
             for jet in jets:
-                edge.append([(first_id, -1)])
+                if recluster is not None:
+                    constituents = []
+                    for c in jet.constituents():
+                        constituents.append((c.e, c.px, c.py, c.pz, c.id))
+                    constituents = np.array(constituents, dtype=self.event.dtype)
+                    sequence = cluster(constituents, R=R, p=0, ep=True)
+                    jet = sequence.inclusive_jets()[0]
+           
+                edge.append([(-1, first_id)])
                 ptcl_temp, edge_temp = self.__get1tree(jet, first_id)
                 first_id = np.min(edge_temp) - 1
                 
@@ -231,10 +328,13 @@ class FamilyTree:
 
             edges = [item for sublist in edge for item in sublist]
             ptcls = [item for sublist in ptcl for item in sublist]
-            
        
-        graph = self.__tographicle(
-           np.array(ptcls), np.array(edges)
-        )
+
+        graph = self.__tographicle(np.array(ptcls), np.array(edges))
+
+        '''
+        if get_weights:
+            graph = self.__getweights(graph)
+        '''
         return graph
 
