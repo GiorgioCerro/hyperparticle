@@ -71,30 +71,29 @@ def precision_and_recall(event):
     return precision, recall
 
 
-def mAP(graph, hyp ):
+def get_mAP(graph: Graphicle, hyp: NDArray) -> float:
     '''Get the mean average precision for all the different graphs.
     '''
-    G = nx.Graph()
-    G.add_edges_from(graph.edges)
     distances = distance_matrix(hyp, off_diag=False)
     mAP = 0
-    nodes = np.array(list(G.nodes()))
-    for node_idx in range(len(nodes)):
-        node = nodes[node_idx]
+    for node_idx in range(len(graph.nodes)):
+        node = graph.nodes[node_idx]
         # get the neighbours of a node
-        neighbours = list(G.neighbors(node))
+        ins = graph.edges["in"][graph.edges["out"] == node]
+        outs = graph.edges["out"][graph.edges["in"] == node]
+        neighbours = [item for itemlist in [ins,outs] for item in itemlist]
+
         temp_mAP = 0
         for neigh in neighbours:
             # define the circle's radius
-            neigh_idx = np.where(nodes == neigh)[0]
-            radius = distances[node_idx][neigh_idx][0]
+            radius = distances[node_idx][graph.nodes == neigh][0]
 
             # find all the nodes within the circle
             radius_mask = distances[node_idx] <= radius
             # remove self loop
             radius_mask[node_idx] = False
 
-            nodes_in_circle = nodes[radius_mask]
+            nodes_in_circle = graph.nodes[radius_mask]
             # count how manyy should be there
             num = len(set(nodes_in_circle).intersection(set(neighbours)))
             # how many there are in total
@@ -104,7 +103,7 @@ def mAP(graph, hyp ):
 
         mAP += temp_mAP / len(neighbours) 
         
-    mAP /= G.number_of_nodes()
+    mAP /= len(graph.nodes)
     return mAP
 
 

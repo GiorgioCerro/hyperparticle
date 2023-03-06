@@ -19,8 +19,7 @@ sys.path.append('/mainfs/home/gc2c20/myproject/hyperparticle/data_generation/')
 import numpy as np
 import graphicle as gcl
 #from embedding import HyperEmbedding
-from duplicates import duplicate_mask
-from tree import FamilyTree
+from hyperparticle.tree import FamilyTree
 
 import networkx as nx
 from hyperlib.embedding.sarkar import sarkar_embedding
@@ -41,7 +40,7 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
     num_procs: int = comm.Get_size()
 
     total_num_events = count_events(lhe_path)
-    stride = ceil(total_num_events / num_procs)
+    stride = 10000#ceil(total_num_events / num_procs)
 
     # split filepaths for each process
     split_dir = output_filepath.parent
@@ -63,76 +62,70 @@ def main(lhe_path, pythia_path, output_filepath,process_name):
     with HdfWriter(split_path) as hep_file:
         with hep_file.new_process(process_name) as proc:
             for event in gen:
+                graph = gcl.Graphicle.from_event(event)
+                # cluster
+                
+                algo = ['aKt', 'CA', 'Kt']
+                ps = [-1, 0, 1]
+                tree = FamilyTree(graph)
+                
+                g = tree.history(R=1.,p = ps[0], pt_cut=30, eta_cut=2.5)
+                if not g:
+                    print(f'antikt not found, skipping')
+                    continue
+                
                 with proc.new_event() as event_write:
-                    graph = gcl.Graphicle.from_numpy(
-                        edges = event.edges,
-                        pmu = event.pmu,
-                        pdg = event.pdg,
-                        status = event.status,
-                        final = event.final,
-                    )
-                    #graph = duplicate_mask(g)
-
-                    # cluster
                     algo = ['aKt', 'CA', 'Kt']
                     ps = [-1, 0, 1]
-                    k=1
+                    
+                    event_write.pmu = graph.pmu.data 
+                    event_write.pdg = graph.pdg.data
+                    event_write.status = graph.status.data 
+                    event_write.edges = graph.edges
+                    event_write.masks['final'] = graph.final.data
+                    
                     tree = FamilyTree(graph)
-                    g = tree.history(p = ps[k])
+                    
+                    k=0
+                    lg = len(graph.pmu.data)
+                    auxiliar_pmu = np.zeros_like(graph.pmu.data)
+                    auxiliar_edges = np.zeros_like(graph.edges[:lg])
+                    auxiliar_hyper = np.zeros((lg, 2))
+                    auxiliar_mask = np.zeros(lg, dtype=bool)
+                    auxiliar_weights = np.zeros(lg)
+
+                    if process_name == "signal":
+                        desired_jets = "W"
+                    else:
+                        desired_jets = "qcd"
+                    g = tree.history(R=1.0, p=ps[k], pt_cut=30, eta_cut=2.5, 
+                        recluster=True, desired_jets=desired_jets)
+
                     if not g:
                         continue
+                    lab = np.where(g.nodes == -1)[0]
+                    
+                    
+                    G = nx.Graph()
+                    G.add_edges_from(g.edges)
+                    nodes = np.array(G.nodes())
+                    mapping = {nodes[i]: i for i in range(len(nodes))}
+                    G = nx.relabel_nodes(G, mapping)
+                    
+                    embed = sarkar_embedding(tree=G, root=mapping[-1], 
+                        tau=0.6, weighted=False)
+                    hyp = np.array(list(map(float, embed))).reshape(-1, 2)
+                    
+                    length = len(g.nodes)
+                    auxiliar_pmu[:length] = g.pmu.data
+                    auxiliar_edges[:length-1] = g.edges
+                    auxiliar_hyper[:length] = hyp
+                    auxiliar_mask[:length] = True
 
-                    event_write.set_pmu(graph.pmu.data)
-                    event_write.set_pdg(graph.pdg.data)
-                    event_write.set_status(graph.status.data)
-                    event_write.set_edges(graph.edges)
-                    event_write.set_mask('final', data=graph.final.data)
-                                        
-                    #tree = FamilyTree(graph)
-                    for k in range(3):
-                        lg = len(graph.pmu.data)
-                        auxiliar_pmu = np.zeros_like(graph.pmu.data)
-                        auxiliar_edges = np.zeros_like(graph.edges[:lg])
-                        auxiliar_hyper = np.zeros((lg, 2))
-                        auxiliar_mask = np.zeros(lg, dtype=bool)
-
-                        g = tree.history(p = ps[k])
-                        if not g:
-                            continue
-                        lab = np.where(g.nodes == -1)[0]
-
-                        G = nx.Graph()
-                        G.add_edges_from(g.edges)
-                        nodes = np.array(G.nodes())
-                        mapping = {nodes[i]: i for i in range(len(nodes))}
-                        G = nx.relabel_nodes(G, mapping)
-                        embed = sarkar_embedding(tree=G, root=mapping[-1], 
-                            tau=0.7, weighted=False)
-                        hyp = np.array(list(map(float, embed))).reshape(-1, 2)
-                        
-                        length = len(g.nodes)
-                        auxiliar_pmu[:length] = g.pmu.data
-                        auxiliar_edges[:length-1] = g.edges
-                        auxiliar_hyper[:length] = hyp
-                        auxiliar_mask[:length] = True
-
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_pmu', data = auxiliar_pmu, 
-                            dtype = auxiliar_pmu.dtype
-                        )
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_edges', data = auxiliar_edges, 
-                            dtype = auxiliar_edges.dtype
-                        )
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_hyp', data = auxiliar_hyper, 
-                            dtype = auxiliar_hyper.dtype
-                        ) 
-                        event_write.set_custom_dataset(
-                            name = algo[k] + '_mask', data = auxiliar_mask, 
-                            dtype = auxiliar_mask.dtype
-                        )
-
+                    event_write.custom[algo[k] + '_pmu'] = auxiliar_pmu
+                    event_write.custom[algo[k] + '_edges'] = auxiliar_edges
+                    event_write.custom[algo[k] + '_hyp'] = auxiliar_hyper
+                    event_write.custom[algo[k] + '_mask'] = auxiliar_mask
 
 if __name__ == '__main__':
     sys.exit(main())
